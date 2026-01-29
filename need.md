@@ -1,4 +1,4 @@
-Yocto BSP Studio (Electron) — 요구사항 문서 (PRD / SRS)
+﻿Yocto BSP Studio (Electron) — 요구사항 문서 (PRD / SRS)
 0. 문서 목적
 
 본 문서는 Yocto 기반 Linux BSP 개발을 초보자도 수행 가능한 수준으로 단순화·표준화하는 전용 데스크탑 툴( Electron 앱 )의 요구사항을 정의한다.
@@ -47,7 +47,7 @@ conf 파일 수정, defconfig/fragment 적용, 레시피 추가/패치 적용, �
 
 로컬 편집(코드/레시피/conf/커널 설정 파일)
 
-서버 동기화(rsync 기반, 변경분)
+서버 동기화(optional / deferred, rsync 기반, 변경분)
 
 원격 빌드 트리거(bitbake) + 로그 스트리밍
 
@@ -91,7 +91,7 @@ UI/워크플로/프로젝트 인덱싱
 
 SSH 연결 관리
 
-rsync 동기화 제어
+rsync 동기화 제어 (optional / deferred)
 
 빌드 요청/로그 스트리밍/다운로드
 
@@ -105,7 +105,7 @@ Workspace 디렉토리(소스 동기화 대상)
 
 빌드 실행 및 결과 job 디렉토리 정리
 
-통신은 1차 MVP에서 SSH + rsync + SFTP/scp로 완결한다. (서버 데몬 없이)
+통신은 1차 MVP에서 SSH + SFTP/scp (rsync optional / deferred)로 완결한다. (서버 데몬 없이)
 
 5.2 디렉토리 규칙(서버)
 
@@ -203,13 +203,13 @@ FR-KRN-05: 변경 반영 검증 기능
 
 7.5 동기화
 
-FR-SYNC-01: rsync 기반 증분 동기화(저장 시 자동/수동 옵션)
+FR-SYNC-01 (optional / deferred): rsync 기반 증분 동기화(저장 시 자동/수동 옵션)
 
-FR-SYNC-02: 기본 exclude 규칙 제공(필수)
+FR-SYNC-02 (optional / deferred): 기본 exclude 규칙 제공
 
 tmp/, downloads/, sstate-cache/, build/ 산출물 등
 
-FR-SYNC-03: 동기화 결과 리포트(전송 파일/충돌/실패 원인)
+FR-SYNC-03 (optional / deferred): 동기화 결과 리포트(전송 파일/충돌/실패 원인)
 
 7.6 원격 빌드 및 로그
 
@@ -343,14 +343,14 @@ R-01: Yocto 변수 오버라이드/우선순위 추적은 복잡 → bitbake -e 
 
 R-02: 벤더 커널 레시피마다 defconfig 적용 방식이 다름 → “자동 탐지 + 수동 규칙 등록” 둘 다 필요
 
-R-03: Windows에서 rsync/ssh 환경 이슈 → 내장 rsync(예: cwRsync) 또는 자체 전송 모듈 고려
+R-03: Windows에서 rsync/ssh 환경 이슈 (only if rsync enabled) → 내장 rsync(예: cwRsync) 또는 자체 전송 모듈 고려
 
 R-04: 프로젝트마다 정책이 다름 → “정책 파일(policy.yaml)”로 규칙을 외부화해야 확장 가능
 
 12. 로드맵(권장)
 Phase 0 — 기반(MVP)
 
-SSH/rsync/SFTP, 프로젝트 열기, conf 편집, 원격 빌드, 로그, 아티팩트 다운로드, manifest 기록
+SSH/SFTP (rsync optional), 프로젝트 열기, conf 편집, 원격 빌드, 로그, 아티팩트 다운로드, manifest 기록
 
 Phase 1 — Yocto 인덱스/가이드 강화
 

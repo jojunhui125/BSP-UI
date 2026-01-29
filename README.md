@@ -30,7 +30,7 @@ Yocto/BitBake 기반 BSP 개발을 위한 Electron 데스크톱 IDE입니다. �
 
 ### Phase B: 빌드 파이프라인 (진행/대기)
 
-- B-01: rsync 동기화
+- B-01: rsync 동기화 (optional / deferred)
 - B-02: bitbake 빌드 실행
 - B-03: 빌드 로그 스트리밍
 - B-04: 빌드 콘솔 UI

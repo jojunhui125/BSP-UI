@@ -1,4 +1,4 @@
-# Yocto BSP Studio — 통합 요구사항 명세서 (Consolidated PRD/SRS)
+﻿# Yocto BSP Studio — 통합 요구사항 명세서 (Consolidated PRD/SRS)
 
 > **문서 버전**: 3.0  
 > **최종 수정일**: 2026-01-28  
@@ -62,7 +62,7 @@
 
 #### In Scope (v1.0) ⭐ 핵심 기능
 - 로컬 프로젝트 열기 및 인덱싱
-- SSH/rsync 기반 서버 동기화
+- SSH 기반 서버 동기화 (rsync optional / deferred)
 - 원격 빌드 트리거 및 로그 스트리밍
 - 아티팩트 자동 수집 및 SD카드 이미지 다운로드
 - **⭐ 통합 코드 에디터** (Eclipse 수준, 직접 코드 수정)
@@ -160,7 +160,7 @@
 │                                                                           │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐           │
 │  │   UI Layer      │  │  Policy Engine  │  │  Sync Manager   │           │
-│  │  (React/Vue)    │  │  (YAML Parser)  │  │  (rsync/SSH)    │           │
+│  │  (React/Vue)    │  │  (YAML Parser)  │  │  (SSH only, rsync optional)    │           │
 │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘           │
 │           │                    │                    │                     │
 │  ┌────────┴────────────────────┴────────────────────┴────────┐           │
@@ -174,7 +174,7 @@
 │           │                                                               │
 └───────────┼───────────────────────────────────────────────────────────────┘
             │
-            │ SSH + rsync + SFTP/scp
+            │ SSH + SFTP/scp (rsync optional / deferred)
             ▼
 ┌───────────────────────────────────────────────────────────────────────────┐
 │                         Build Server (Remote Linux)                       │
@@ -200,7 +200,7 @@
 | 용도 | 프로토콜 | 라이브러리 | 비고 |
 |------|----------|------------|------|
 | 연결/명령 실행 | SSH | ssh2 (Node.js) | 키 기반 인증 권장 |
-| 파일 동기화 | rsync over SSH | node-rsync / cwRsync(Win) | 증분 전송 |
+| 파일 동기화 (optional / deferred) | rsync over SSH | node-rsync / cwRsync(Win) | 증분 전송 |
 | 파일 다운로드 | SFTP | ssh2-sftp-client | 대용량 아티팩트 |
 | 로그 스트리밍 | SSH exec | ssh2 | 실시간 stdout/stderr |
 
@@ -215,7 +215,7 @@
 │      │                                                                   │
 │      ▼                                                                   │
 │  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐         │
-│  │ Policy Check   │───▶│ rsync Sync     │───▶│ SSH Build Cmd  │         │
+│  │ Policy Check   │───▶│ Sync (optional)     │───▶│ SSH Build Cmd  │         │
 │  │ (deny/warn)    │    │ (증분 전송)    │    │ (bitbake)      │         │
 │  └────────────────┘    └────────────────┘    └───────┬────────┘         │
 │                                                      │                   │
@@ -1227,7 +1227,7 @@ bitbake -e virtual/kernel | grep -E "^(PN|FILE|PREFERRED_PROVIDER|SRC_URI|KERNEL
 | ID | 요구사항 | 우선순위 | 상세 |
 |----|----------|----------|------|
 | FR-SSH-01 | SSH 키 기반 연결 | P0 | Ed25519/RSA 지원 |
-| FR-SSH-02 | 연결 테스트 | P0 | 권한, 디스크 여유, 필수 커맨드(bitbake, rsync) 확인 |
+| FR-SSH-02 | 연결 테스트 | P0 | 권한, 디스크 여유, 필수 커맨드(bitbake (rsync optional)) 확인 |
 | FR-SSH-03 | 프로필 저장 | P0 | 프로젝트별 서버 프로필, OS Keychain 사용 |
 | FR-SSH-04 | 연결 복구 | P1 | 네트워크 끊김 시 자동 재연결 시도 |
 
@@ -1264,10 +1264,10 @@ bitbake -e virtual/kernel | grep -E "^(PN|FILE|PREFERRED_PROVIDER|SRC_URI|KERNEL
 
 | ID | 요구사항 | 우선순위 | 상세 |
 |----|----------|----------|------|
-| FR-SYNC-01 | rsync 증분 동기화 | P0 | 변경분만 전송 |
-| FR-SYNC-02 | exclude 규칙 | P0 | tmp/, downloads/, sstate-cache/, build/ 제외 |
-| FR-SYNC-03 | 동기화 리포트 | P1 | 전송 파일 목록, 충돌, 실패 원인 |
-| FR-SYNC-04 | Windows 지원 | P0 | cwRsync 또는 WSL rsync 자동 선택 |
+| FR-SYNC-01 | rsync 증분 동기화 | P2 (optional / deferred) | 변경분만 전송 |
+| FR-SYNC-02 | exclude 규칙 | P2 (optional / deferred) | tmp/, downloads/, sstate-cache/, build/ 제외 |
+| FR-SYNC-03 | 동기화 리포트 | P3 (optional / deferred) | 전송 파일 목록, 충돌, 실패 원인 |
+| FR-SYNC-04 | Windows 지원 | P2 (optional / deferred) | cwRsync 또는 WSL rsync 자동 선택 |
 
 ### 10.6 원격 빌드 (FR-BLD)
 
@@ -1532,7 +1532,7 @@ failure_patterns:
 | W5-6 | **⭐ 통합 에디터 기본** | Monaco Editor 통합, 구문 하이라이트 |
 | W7-8 | **⭐ Device Tree 파서** | DTS/DTSI 파싱, 트리 구조 시각화 |
 | W9-10 | **⭐ Go to Definition** | include/심볼 정의 점프 구현 |
-| W11-12 | rsync 동기화 모듈 | 증분 동기화, exclude 규칙 |
+| W11-12 | rsync 동기화 모듈 (optional / deferred) | 증분 동기화, exclude 규칙 |
 | W13-14 | 빌드 트리거/로그 스트리밍 | bitbake 실행, 실시간 로그 |
 | W15-16 | 아티팩트 수집/다운로드 | SFTP 전송, sha256 검증 |
 | W17 | manifest.json 생성 | Job 시스템, 스키마 구현 |
@@ -1570,7 +1570,7 @@ failure_patterns:
 |----|--------|--------|-----------|-----------|
 | R-01 | Yocto 변수 오버라이드 추적 복잡 | 높음 | 높음 | bitbake -e 파싱 표준화, 캐싱 |
 | R-02 | 벤더 커널마다 defconfig 방식 다름 | 높음 | 중간 | 자동 탐지 + 수동 규칙 등록 UI |
-| R-03 | Windows rsync/ssh 환경 이슈 | 중간 | 높음 | cwRsync 번들링, WSL 폴백 |
+| R-03 | Windows rsync/ssh 환경 이슈 (only if rsync enabled) | 중간 | 높음 | cwRsync 번들링, WSL 폴백 |
 | R-04 | 프로젝트마다 정책 다름 | 중간 | 높음 | policy.yaml 외부화, 템플릿 제공 |
 | R-05 | 대용량 로그 스트리밍 UI 멈춤 | 중간 | 중간 | 백프레셔, 가상 스크롤링 |
 | R-06 | 서버 빌드 환경 다양성 | 중간 | 중간 | 최소 요구사항 문서화, 진단 도구 |
@@ -1700,7 +1700,7 @@ failure_patterns:
 | OS | Ubuntu 18.04+ / RHEL 8+ / Debian 10+ |
 | 디스크 | 최소 100GB 여유 공간 |
 | RAM | 16GB 이상 권장 |
-| 필수 패키지 | git, tar, python3, gcc, make, rsync, bitbake |
+| 필수 패키지 | git, tar, python3, gcc, make, bitbake (rsync optional) |
 | SSH | OpenSSH Server, 키 기반 인증 |
 
 ---
@@ -1836,3 +1836,4 @@ beginner_mode:
 > **문서 종료**  
 > 본 문서는 Yocto BSP Studio의 완전한 요구사항 명세서로서,  
 > 구현 팀이 참조해야 할 모든 기술적·비즈니스적 요구사항을 포함한다.
+

@@ -1,4 +1,4 @@
-# Yocto BSP Studio — 상세 구현 로드맵
+﻿# Yocto BSP Studio — 상세 구현 로드맵
 
 > **문서 버전**: 1.0  
 > **최종 수정일**: 2026-01-28  
@@ -53,7 +53,7 @@
 |------|------|-----------|
 | **Tech Lead** | 1명 | 아키텍처, 코드 리뷰, 기술 의사결정 |
 | **Frontend Dev** | 1-2명 | Electron UI, React/Vue, 에디터 통합 |
-| **Backend Dev** | 1명 | SSH/rsync, BitBake 연동, 파서 개발 |
+| **Backend Dev** | 1명 | SSH (rsync optional), BitBake 연동, 파서 개발 |
 | **DevOps** | 0.5명 | CI/CD, 테스트 자동화, 배포 |
 
 ---
@@ -81,7 +81,7 @@
 │  Sprint 7-8 (W13-16)      Sprint 9 (W17-18)                                    │
 │  ─────────────────        ─────────────────                                    │
 │  🔨 빌드 시스템           📦 완성 + 안정화                                     │
-│  • rsync 동기화           • manifest 생성                                      │
+│  • rsync 동기화 (optional / deferred)           • manifest 생성                                      │
 │  • bitbake 실행           • Policy Engine                                      │
 │  • 로그 스트리밍          • 통합 테스트                                        │
 │  • 아티팩트 다운로드      • 버그 수정                                          │
@@ -114,7 +114,7 @@
 |------|---------|--------|-----------|--------|------|
 | W3 | T005 | SSH 연결 모듈 | - ssh2 라이브러리 통합<br>- 키 기반 인증<br>- 연결 풀 관리 | ssh-manager 모듈 | Backend |
 | W3 | T006 | 연결 UI | - 서버 프로필 폼<br>- 연결 테스트 버튼<br>- 상태 표시 | SSH 설정 다이얼로그 | Frontend |
-| W4 | T007 | 연결 테스트 기능 | - 권한 확인 (bitbake, rsync 존재)<br>- 디스크 여유 확인<br>- 에러 메시지 표시 | 진단 리포트 UI | Backend |
+| W4 | T007 | 연결 테스트 기능 | - 권한 확인 (bitbake 존재, rsync optional)<br>- 디스크 여유 확인<br>- 에러 메시지 표시 | 진단 리포트 UI | Backend |
 | W4 | T008 | 프로필 저장 | - OS Keychain 통합 (keytar)<br>- 프로젝트별 프로필<br>- 암호화 저장 | 설정 persistence | Backend |
 
 **산출물 체크리스트 (W4 완료 시점)**:
@@ -193,7 +193,7 @@
 
 ---
 
-#### 🔨 Sprint 7: rsync 동기화 (W13-W14)
+#### 🔨 Sprint 7: rsync 동기화 (optional / deferred) (W13-W14)
 
 | Week | Task ID | 태스크 | 상세 작업 | 산출물 | 담당 |
 |------|---------|--------|-----------|--------|------|
@@ -579,7 +579,7 @@
 │  • Runtime: Electron 28+                                                        │
 │  • SSH: ssh2                                                                    │
 │  • SFTP: ssh2-sftp-client                                                       │
-│  • rsync: node-rsync + cwRsync (Windows)                                        │
+│  • rsync (optional): node-rsync + cwRsync (Windows)                                        │
 │  • YAML: yaml (js-yaml)                                                         │
 │  • Keychain: keytar                                                             │
 │                                                                                 │
@@ -728,7 +728,7 @@ src/
 | ID | 리스크 | 영향 | 확률 | 완화 전략 | 담당 |
 |----|--------|------|------|-----------|------|
 | R01 | DTS 파서 복잡도 | 높음 | 중간 | tree-sitter 우선, 자체 파서 폴백 | Backend |
-| R02 | Windows rsync 호환 | 중간 | 높음 | cwRsync 번들링 + WSL 폴백 | Backend |
+| R02 | Windows rsync 호환 (optional) | 중간 | 높음 | cwRsync 번들링 + WSL 폴백 | Backend |
 | R03 | 대용량 로그 성능 | 중간 | 중간 | 가상 스크롤링 + 백프레셔 | Frontend |
 | R04 | bitbake -e 파싱 | 높음 | 중간 | 정규식 + 캐싱 + 점진적 파싱 | Backend |
 | R05 | Monaco 번들 크기 | 낮음 | 높음 | 필요한 언어만 번들링 | Frontend |
@@ -903,7 +903,7 @@ review:
 │  Phase A (2-3주)         Phase B (2-3주)         Phase C (2주)    Phase D (1주)│
 │  ─────────────────       ─────────────────       ──────────────   ─────────────│
 │  🎯 IDE 핵심 기능        🔨 빌드 시스템          🔧 파서 고도화   🔒 보안+안정화│
-│  • Go to Definition      • rsync 동기화          • Include 병합   • keytar 통합│
+│  • Go to Definition      • rsync 동기화 (optional / deferred)          • Include 병합   • keytar 통합│
 │  • Find All References   • bitbake 실행          • 매크로 해석    • 버그 수정  │
 │  • 자동완성              • 로그 스트리밍         • tree-sitter    • 성능 최적화│
 │  • Hover 정보            • 아티팩트 다운로드     • 순환 참조 감지 │             │
@@ -1124,7 +1124,7 @@ inherit |               // 입력 중
 > **목표**: "30분 내 첫 빌드 성공"  
 > **완료 조건**: UI에서 빌드 시작 → 로그 확인 → 이미지 다운로드
 
-#### B-01: rsync 동기화
+#### B-01: rsync 동기화 (optional / deferred)
 
 | 항목 | 내용 |
 |------|------|
@@ -1308,7 +1308,7 @@ pinctrl-0 = <S32_PINMUX(1, 2, 3)>;  // → 0x010203 으로 계산
 | A-04 | BitBake 자동완성 | ✅ 완료 | 2026-01-29 |
 | A-05 | Hover 정보 | ✅ 완료 | 2026-01-29 |
 | A-06 | Breadcrumb | ✅ 완료 | 2026-01-29 |
-| B-01 | rsync 동기화 | ⬜ 대기 | - |
+| B-01 | rsync 동기화 (optional / deferred) | ⬜ 옵션(보류) | - |
 | B-02 | bitbake 빌드 | ⬜ 대기 | - |
 | B-03 | 로그 스트리밍 | ⬜ 대기 | - |
 | B-04 | 빌드 콘솔 UI | ⬜ 대기 | - |
@@ -1349,7 +1349,7 @@ pinctrl-0 = <S32_PINMUX(1, 2, 3)>;  // → 0x010203 으로 계산
 │  └── Toast 알림 시스템 ✅                                       │
 │                                                                 │
 │  🔴 긴급 (다음 목표)                                             │
-│  ├── B-01: rsync 동기화 (4-5일)                                 │
+│  ├── B-01: rsync 동기화 (optional / deferred) (4-5일)                                 │
 │  ├── B-02: bitbake 빌드 트리거 (2-3일)                          │
 │  └── B-03: 빌드 로그 스트리밍 (2일)                              │
 │                                                                 │
@@ -1378,3 +1378,5 @@ pinctrl-0 = <S32_PINMUX(1, 2, 3)>;  // → 0x010203 으로 계산
 > **문서 종료**  
 > 본 로드맵은 프로젝트 진행에 따라 지속적으로 업데이트됩니다.  
 > 최신 버전은 프로젝트 저장소의 `ROADMAP.md`를 참조하세요.
+
+
