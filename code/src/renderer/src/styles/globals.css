@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 기본 스타일 리셋 및 테마 */
+:root {
+  --color-bg: #1e1e1e;
+  --color-sidebar: #252526;
+  --color-panel: #1e1e1e;
+  --color-border: #3c3c3c;
+  --color-active: #094771;
+  --color-hover: #2a2d2e;
+  --color-text: #cccccc;
+  --color-text-muted: #858585;
+  --color-accent: #007acc;
+  --color-success: #4ec9b0;
+  --color-warning: #dcdcaa;
+  --color-error: #f14c4c;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 스크롤바 스타일 (Windows 스타일) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4f4f4f;
+}
+
+/* 선택 불가 (드래그 방지) */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 포커스 링 스타일 */
+:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+/* 버튼 리셋 */
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+/* 코드/모노스페이스 */
+.font-mono {
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+}
+
+/* Toast 애니메이션 */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-slide-out {
+  animation: slideOut 0.2s ease-out forwards;
+}
+
+/* 패널 리사이즈 커서 */
+.resize-handle-h:hover,
+.resize-handle-h:active {
+  cursor: col-resize;
+}
+
+.resize-handle-v:hover,
+.resize-handle-v:active {
+  cursor: row-resize;
+}
