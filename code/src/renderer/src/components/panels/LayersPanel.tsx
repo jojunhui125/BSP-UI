@@ -36,13 +36,16 @@ const toLayerName = (path: string) => {
   return parts[parts.length - 1] ?? path
 }
 
+const quoteForShell = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`
+
 export function LayersPanel() {
-  const { currentProject, serverProject } = useProjectStore()
+  const { currentProject, serverProject, bspMachine } = useProjectStore()
   const { connectionStatus, activeProfile } = useSshStore()
   const { config } = useBuildStore()
   const [serverLayers, setServerLayers] = useState<LayerEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedBuildDir, setResolvedBuildDir] = useState<string | null>(null)
 
   const serverMode = Boolean(serverProject)
   const layers = currentProject?.layers ?? serverLayers
@@ -57,17 +60,60 @@ export function LayersPanel() {
       if (!serverProject || !activeProfile || !connectionStatus.connected) return
       setLoading(true)
       setError(null)
+      setResolvedBuildDir(null)
 
       try {
-        const buildDir = config.buildDir.trim() || 'build'
-        const bblayersPath = `${serverProject.path}/${buildDir}/conf/bblayers.conf`
-        const content = await window.electronAPI.ssh.readFile(activeProfile.id, bblayersPath)
+        const rawBuildDir = config.buildDir.trim()
+        const candidateDirs: string[] = []
+        if (rawBuildDir) {
+          candidateDirs.push(rawBuildDir)
+        }
+        if (bspMachine) {
+          candidateDirs.push(`build_${bspMachine}`)
+        }
+        candidateDirs.push('build')
+
+        try {
+          const listCmd = `cd ${quoteForShell(serverProject.path)} && ls -1d build_* 2>/dev/null`
+          const listResult = await window.electronAPI.ssh.exec(
+            activeProfile.id,
+            `bash -lc ${quoteForShell(listCmd)}`
+          )
+          const extra = listResult.stdout
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+          candidateDirs.push(...extra)
+        } catch {
+          // ignore list failures
+        }
+
+        const buildDirs = Array.from(new Set(candidateDirs.filter(Boolean)))
+        let content = ''
+        let selectedBuildDir = ''
+
+        for (const dir of buildDirs) {
+          try {
+            const bblayersPath = `${serverProject.path}/${dir}/conf/bblayers.conf`
+            content = await window.electronAPI.ssh.readFile(activeProfile.id, bblayersPath)
+            selectedBuildDir = dir
+            break
+          } catch {
+            // try next candidate
+          }
+        }
+
+        if (!content) {
+          throw new Error(`bblayers.conf not found (tried: ${buildDirs.join(', ')})`)
+        }
+
+        setResolvedBuildDir(selectedBuildDir)
 
         const tokens = Array.from(
           content.matchAll(/(?:\$\{[^}]+\}|\/)[^\s"'\\]+/g)
         ).map((match) => match[0].replace(/['"\\]/g, '').trim())
 
-        const topDir = `${serverProject.path}/${buildDir}`
+        const topDir = `${serverProject.path}/${selectedBuildDir}`
         const vars = {
           TOPDIR: topDir,
           BSPDIR: serverProject.path,
@@ -113,7 +159,7 @@ export function LayersPanel() {
     }
 
     void loadServerLayers()
-  }, [serverProject?.path, activeProfile?.id, connectionStatus.connected, config.buildDir])
+  }, [serverProject?.path, activeProfile?.id, connectionStatus.connected, config.buildDir, bspMachine])
 
   if (!currentProject && !serverProject) {
     return (
@@ -152,7 +198,8 @@ export function LayersPanel() {
     <div className="p-2">
       <div className="mb-2 flex items-center justify-between text-xs text-ide-text-muted">
         <span>
-          {serverMode ? '서버 레이어' : '로컬 레이어'} {sortedLayers.length}개
+        {serverMode ? '서버 레이어' : '로컬 레이어'} {sortedLayers.length}개
+        {serverMode && resolvedBuildDir ? ` (${resolvedBuildDir})` : ''}
         </span>
         {serverMode && (
           <span>

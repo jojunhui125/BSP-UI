@@ -63,6 +63,7 @@ Yocto/BitBake 기반 BSP 개발을 위한 Electron 데스크톱 IDE입니다. �
 - BSP 환경 초기화 게이트: 초기화 전 빌드 제한, 머신 자동 스캔 + 수동 입력 + 새로고침
 - 레이어 탭: 서버 bblayers.conf 기반 레이어/우선순위 표시 + 로딩 상태 표시
 - 하단 패널(콘솔/문제점/출력) 토글 버튼 추가
+- 레이어 로딩 경로 개선: build_* 규칙 자동 탐색 + 선택된 build dir 표시
 - rsync는 현재 워크플로 기준으로 optional/deferred 유지
 
 ## 기술 스택
