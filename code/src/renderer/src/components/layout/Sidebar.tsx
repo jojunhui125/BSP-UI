@@ -91,7 +91,7 @@ export function Sidebar() {
 // 빌드 패널
 function BuildPanel() {
   const { connectionStatus, activeProfile } = useSshStore()
-  const { serverProject } = useProjectStore()
+  const { serverProject, bspInitialized, bspMachine } = useProjectStore()
   const {
     config,
     setConfig,
@@ -107,15 +107,96 @@ function BuildPanel() {
     _setupListeners,
   } = useBuildStore()
 
-  const { hasConnection, hasProject, canBuild } = useMemo(() => {
+  const [targets, setTargets] = useState<string[]>([])
+  const [machines, setMachines] = useState<string[]>([])
+  const [optionsSource, setOptionsSource] = useState<'none' | 'quick'>('none')
+  const [optionsLoading, setOptionsLoading] = useState(false)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
+
+  const { hasConnection, hasProject, canUsePanel, canBuild } = useMemo(() => {
     const connected = Boolean(connectionStatus.connected && activeProfile)
     const projectReady = Boolean(serverProject)
     return {
       hasConnection: connected,
       hasProject: projectReady,
-      canBuild: connected && projectReady,
+      canUsePanel: connected && projectReady,
+      canBuild: connected && projectReady && bspInitialized,
     }
-  }, [connectionStatus.connected, activeProfile, serverProject])
+  }, [connectionStatus.connected, activeProfile, serverProject, bspInitialized])
+
+  const quoteForShell = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`
+
+  const parseList = (text: string) =>
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+
+  const mergeUnique = (items: string[]) => Array.from(new Set(items))
+
+  const loadQuickOptions = async () => {
+    if (!activeProfile || !serverProject) return
+    setOptionsLoading(true)
+    setOptionsError(null)
+
+    try {
+      const serverId = activeProfile.id
+      const projectPath = serverProject.path
+      const buildDir = config.buildDir.trim() || 'build'
+      const base = `cd ${quoteForShell(projectPath)} &&`
+
+      const machineCmd = `${base} find ./sources -type f -path \"*/conf/machine/*.conf\" -print 2>/dev/null | sed \"s#.*/##\" | sed \"s/\\.conf$//\" | sort -u`
+      const targetCmd = `${base} find ./sources -type f -name \"*.bb\" -path \"*/recipes-*/*image*/*.bb\" -print 2>/dev/null | sed \"s#.*/##\" | sed \"s/\\.bb$//\" | sort -u`
+
+      const [machineRes, targetRes] = await Promise.all([
+        window.electronAPI.ssh.exec(serverId, `bash -lc ${quoteForShell(machineCmd)}`),
+        window.electronAPI.ssh.exec(serverId, `bash -lc ${quoteForShell(targetCmd)}`),
+      ])
+
+      let machineList = parseList(machineRes.stdout)
+      let targetList = parseList(targetRes.stdout)
+
+      // local.conf에서 MACHINE 힌트
+      try {
+        const localConfPath = `${projectPath}/${buildDir}/conf/local.conf`
+        const localConf = await window.electronAPI.ssh.readFile(serverId, localConfPath)
+        const match = localConf.match(/^\s*MACHINE\s*(\?=|=)\s*\"?([^\"\n]+)\"?/m)
+        if (match?.[2]) {
+          const detected = match[2].trim()
+          machineList = [detected, ...machineList]
+          if (!config.machine.trim()) {
+            setConfig({ machine: detected })
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // 일반적으로 자주 쓰는 타깃 힌트
+      targetList = ['virtual/kernel', 'virtual/bootloader', ...targetList]
+
+      const mergedMachines = mergeUnique(machineList)
+      const mergedTargets = mergeUnique(targetList)
+
+      setMachines(mergedMachines)
+      setTargets(mergedTargets)
+      setOptionsSource('quick')
+
+      if (!config.image.trim() && mergedTargets.length > 0) {
+        const preferred =
+          mergedTargets.find((t) => t === 'fsl-image-auto') ||
+          mergedTargets.find((t) => t === 'core-image-minimal') ||
+          mergedTargets[0]
+        if (preferred) {
+          setConfig({ image: preferred })
+        }
+      }
+    } catch (err: any) {
+      setOptionsError(err?.message || '옵션 로드 실패')
+    } finally {
+      setOptionsLoading(false)
+    }
+  }
 
   useEffect(() => {
     const unsubscribe = _setupListeners()
@@ -123,8 +204,25 @@ function BuildPanel() {
     return () => unsubscribe()
   }, [_setupListeners, refreshStatus])
 
+  useEffect(() => {
+    if (bspMachine && bspMachine !== config.machine) {
+      setConfig({ machine: bspMachine })
+    }
+  }, [bspMachine, config.machine, setConfig])
+
+  useEffect(() => {
+    if (bspMachine && !machines.includes(bspMachine)) {
+      setMachines((prev) => [bspMachine, ...prev])
+    }
+  }, [bspMachine, machines])
+
+  useEffect(() => {
+    if (!canUsePanel) return
+    void loadQuickOptions()
+  }, [canUsePanel, serverProject?.path, activeProfile?.id, config.buildDir])
+
   const handleStart = async () => {
-    if (!activeProfile || !serverProject) return
+    if (!activeProfile || !serverProject || !bspInitialized) return
     await startBuild({
       serverId: activeProfile.id,
       projectPath: serverProject.path,
@@ -138,17 +236,32 @@ function BuildPanel() {
 
   return (
     <div className="flex h-full flex-col p-4 text-sm text-ide-text">
-      {!canBuild && (
+      {!canUsePanel && (
         <div className="text-ide-text-muted">
           {!hasConnection ? '서버에 연결해주세요' : '서버 프로젝트를 선택해주세요'}
         </div>
       )}
 
-      {canBuild && (
+      {canUsePanel && (
         <>
+          {!bspInitialized && (
+            <div className="mb-3 text-xs text-ide-warning">
+              BSP 환경 초기화가 필요합니다. 초기화 후 빌드를 시작하세요.
+            </div>
+          )}
           <div className="mb-3 text-xs text-ide-text-muted">
             Project: <span className="font-mono text-ide-text">{serverProject?.path}</span>
           </div>
+
+          <div className="mb-2 text-xs text-ide-text-muted">
+            Options: {optionsSource === 'quick' ? 'quick scan' : 'not loaded'}
+            {optionsLoading ? ' (loading...)' : ''}
+          </div>
+          {optionsError && (
+            <div className="mb-2 text-xs text-ide-error">
+              {optionsError}
+            </div>
+          )}
 
           <div className="space-y-3">
             <div>
@@ -162,23 +275,35 @@ function BuildPanel() {
             </div>
 
             <div>
-              <label className="block text-xs text-ide-text-muted mb-1">Image</label>
+              <label className="block text-xs text-ide-text-muted mb-1">Target (image/recipe)</label>
               <input
+                list="bsp-target-options"
                 className="w-full px-2 py-1 bg-ide-hover border border-ide-border rounded text-ide-text"
                 value={config.image}
                 onChange={(e) => setConfig({ image: e.target.value })}
-                placeholder="core-image-minimal"
+                placeholder="core-image-minimal / fsl-image-auto / virtual/kernel"
               />
+              <datalist id="bsp-target-options">
+                {targets.map((target) => (
+                  <option key={target} value={target} />
+                ))}
+              </datalist>
             </div>
 
             <div>
               <label className="block text-xs text-ide-text-muted mb-1">Machine (optional)</label>
               <input
+                list="bsp-machine-options"
                 className="w-full px-2 py-1 bg-ide-hover border border-ide-border rounded text-ide-text"
                 value={config.machine}
                 onChange={(e) => setConfig({ machine: e.target.value })}
                 placeholder="(use local.conf)"
               />
+              <datalist id="bsp-machine-options">
+                {machines.map((machine) => (
+                  <option key={machine} value={machine} />
+                ))}
+              </datalist>
             </div>
 
             <div>
@@ -238,3 +363,4 @@ function BuildPanel() {
     </div>
   )
 }
+

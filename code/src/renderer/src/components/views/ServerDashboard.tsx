@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 서버 프로젝트 대시보드
  * 서버에 연결된 프로젝트의 정보와 작업 패널
  */
@@ -7,10 +7,12 @@ import { useState, useEffect } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSshStore } from '../../stores/sshStore'
 import { useIndexStore } from '../../stores/indexStore'
+import { useBuildStore } from '../../stores/buildStore'
 
 export function ServerDashboard() {
-  const { serverProject, closeProject } = useProjectStore()
+  const { serverProject, closeProject, bspInitialized, bspMachine, setBspInitialized, setBspMachine } = useProjectStore()
   const { activeProfile, connectionStatus, execCommand, consoleOutput, clearConsole } = useSshStore()
+  const { setConfig } = useBuildStore()
   const { 
     isIndexing, indexProgress, lastIndexTime, startIndexing, stats, refreshStats,
     startServerSideIndexing, checkPython, pythonAvailable
@@ -18,8 +20,14 @@ export function ServerDashboard() {
   
   const [command, setCommand] = useState('')
   const [loading, setLoading] = useState(false)
-  const [machine, setMachine] = useState('s32g274ardb2')
-  const [initialized, setInitialized] = useState(false)
+  const [useCustomInit, setUseCustomInit] = useState(false)
+  const [customInitCommand, setCustomInitCommand] = useState('')
+  const [machineOptions] = useState<string[]>([
+    's32g274ardb2',
+    's32g274ardb2ubuntu',
+    's32g399ardb3',
+    's32g274abluebox3',
+  ])
   const [autoIndexChecked, setAutoIndexChecked] = useState(false)
   const [serverIndexMeta, setServerIndexMeta] = useState<{
     exists: boolean; lastSaved?: string; savedBy?: string; stats?: { files: number; symbols: number }
@@ -114,6 +122,18 @@ export function ServerDashboard() {
       setSavingToServer(false)
     }
   }
+
+  useEffect(() => {
+    if (!bspMachine) {
+      setBspMachine('s32g274ardb2')
+    }
+  }, [bspMachine, setBspMachine])
+
+  useEffect(() => {
+    if (bspMachine) {
+      setConfig({ machine: bspMachine })
+    }
+  }, [bspMachine, setConfig])
   
   // 프로젝트 변경 시 autoIndexChecked 초기화
   useEffect(() => {
@@ -148,8 +168,12 @@ export function ServerDashboard() {
     setLoading(true)
     clearConsole()
     try {
-      await execCommand(`cd ${serverProject.path} && source ./nxp-setup-alb.sh -m ${machine}`)
-      setInitialized(true)
+      if (useCustomInit && customInitCommand.trim()) {
+        await execCommand(customInitCommand.trim())
+      } else {
+        await execCommand(`cd ${serverProject.path} && source ./nxp-setup-alb.sh -m ${bspMachine}`)
+      }
+      setBspInitialized(true)
     } catch (error) {
       console.error('Init failed:', error)
     } finally {
@@ -285,16 +309,16 @@ export function ServerDashboard() {
             </div>
 
             {/* BSP 초기화 상태 */}
-            {initialized ? (
+            {bspInitialized ? (
               <div className="p-3 rounded bg-ide-success/10 border border-ide-success/30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-ide-success">✅</span>
                     <span className="text-sm font-medium text-ide-success">BSP 환경 구성 완료</span>
-                    <span className="text-xs text-ide-text-muted">({machine})</span>
+                    <span className="text-xs text-ide-text-muted">({bspMachine})</span>
                   </div>
                   <button
-                    onClick={() => setInitialized(false)}
+                    onClick={() => setBspInitialized(false)}
                     className="px-2 py-1 text-xs text-ide-text-muted hover:text-ide-text"
                   >
                     다시 설정
@@ -308,20 +332,21 @@ export function ServerDashboard() {
                   <span className="text-sm font-medium text-ide-warning">BSP 환경 초기화 필요</span>
                   <span className="text-xs text-ide-text-muted">(선택사항 - 뷰어만 사용 시 불필요)</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-2">
                   <code className="flex-1 px-2 py-1 bg-ide-bg rounded text-xs text-ide-text font-mono">
                     source ./nxp-setup-alb.sh -m
                   </code>
-                  <select
-                    value={machine}
-                    onChange={(e) => setMachine(e.target.value)}
+                  <input
+                    list="bsp-init-machine-options"
+                    value={bspMachine}
+                    onChange={(e) => setBspMachine(e.target.value)}
                     className="px-2 py-1 bg-ide-bg border border-ide-border rounded text-xs text-ide-text"
-                  >
-                    <option value="s32g274ardb2">s32g274ardb2</option>
-                    <option value="s32g274ardb2ubuntu">s32g274ardb2ubuntu</option>
-                    <option value="s32g399ardb3">s32g399ardb3</option>
-                    <option value="s32g274abluebox3">s32g274abluebox3</option>
-                  </select>
+                  />
+                  <datalist id="bsp-init-machine-options">
+                    {machineOptions.map((m) => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
                   <button
                     onClick={handleInitialize}
                     disabled={loading}
@@ -330,6 +355,26 @@ export function ServerDashboard() {
                     {loading ? '초기화 중...' : '🚀 초기화 실행'}
                   </button>
                 </div>
+
+                <div className="flex items-center gap-2 text-xs text-ide-text-muted">
+                  <input
+                    type="checkbox"
+                    checked={useCustomInit}
+                    onChange={(e) => setUseCustomInit(e.target.checked)}
+                  />
+                  <span>직접 명령 입력</span>
+                </div>
+                {useCustomInit && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={customInitCommand}
+                      onChange={(e) => setCustomInitCommand(e.target.value)}
+                      placeholder="예: cd /path && source ./nxp-setup-alb.sh -m s32g274ardb2"
+                      className="w-full px-2 py-1 bg-ide-bg border border-ide-border rounded text-xs text-ide-text font-mono"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

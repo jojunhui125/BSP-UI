@@ -29,12 +29,16 @@ interface ProjectState {
   recentProjects: RecentProject[]
   loading: boolean
   error: string | null
+  bspInitialized: boolean
+  bspMachine: string
 
   // 액션
   openProject: (path: string) => Promise<void>
   setServerProject: (project: ServerProject) => void
   closeProject: () => void
   setError: (error: string | null) => void
+  setBspInitialized: (initialized: boolean) => void
+  setBspMachine: (machine: string) => void
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -46,6 +50,8 @@ export const useProjectStore = create<ProjectState>()(
       recentProjects: [],
       loading: false,
       error: null,
+      bspInitialized: false,
+      bspMachine: '',
 
       // 로컬 프로젝트 열기
       openProject: async (path: string) => {
@@ -108,6 +114,8 @@ export const useProjectStore = create<ProjectState>()(
           serverProject: normalizedProject,
           currentProject: null,
           recentProjects: [newRecent, ...filteredRecent].slice(0, 10),
+          bspInitialized: false,
+          bspMachine: '',
         })
         
         console.log('[ProjectStore] Server project set:', normalizedPath)
@@ -115,13 +123,21 @@ export const useProjectStore = create<ProjectState>()(
 
       // 프로젝트 닫기
       closeProject: () => {
-        set({ currentProject: null, serverProject: null })
+        set({ currentProject: null, serverProject: null, bspInitialized: false, bspMachine: '' })
         console.log('[ProjectStore] Project closed')
       },
 
       // 에러 설정
       setError: (error: string | null) => {
         set({ error })
+      },
+
+      setBspInitialized: (initialized: boolean) => {
+        set({ bspInitialized: initialized })
+      },
+
+      setBspMachine: (machine: string) => {
+        set({ bspMachine: machine })
       },
     }),
     {
